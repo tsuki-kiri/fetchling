@@ -1,0 +1,93 @@
+#!/bin/sh
+# fetchling - tall pastel system fetch
+
+ESC=$(printf '\033')
+c0="${ESC}[0m"
+pink="${ESC}[38;5;218m"
+lav="${ESC}[38;5;183m"
+blue="${ESC}[38;5;153m"
+mint="${ESC}[38;5;122m"
+white="${ESC}[38;5;255m"
+
+# --- Collect info ---
+user=$(id -un 2>/dev/null || echo "?")
+host=$(uname -n 2>/dev/null || echo "?")
+os=$(awk -F= '/^PRETTY_NAME=/ {gsub(/"/,"",$2); print $2}' /etc/os-release 2>/dev/null || uname -s)
+kernel=$(uname -r 2>/dev/null || echo "?")
+arch=$(uname -m)
+uptime=$(uptime -p 2>/dev/null | sed 's/up //' || echo "?")
+mem=$(awk '/MemTotal/ {t=$2}/MemAvailable/ {a=$2} END{if(t) printf "%.1fGi/%.1fGi",(t-a)/1048576,t/1048576}' /proc/meminfo 2>/dev/null)
+shell=$SHELL
+shver=$(bash --version | head -n1 | awk '{print $4}' | cut -d'(' -f1)
+term=$TERM
+pkgs=$(command -v pacman >/dev/null && pacman -Qq | wc -l || echo "-")
+cpu=$(awk -F: '/model name/ {print $2; exit}' /proc/cpuinfo 2>/dev/null | sed 's/^ //')
+gpu=$(lspci 2>/dev/null | grep -i 'vga\|3d' | head -n1 | cut -d: -f3- || echo "?")
+wm=$(echo "${XDG_CURRENT_DESKTOP:-$DESKTOP_SESSION}" | tr -d '\n')
+hostmodel=$(cat /sys/devices/virtual/dmi/id/product_name 2>/dev/null || echo "?")
+disk=$(df -h / 2>/dev/null | awk 'NR==2 {print $3 "/" $2 " (" $5 ")"}')
+procs=$(ps -e --no-headers 2>/dev/null | wc -l)
+tz=$(date +%Z)
+locale=${LANG:-"?"}
+net=$(ip -o -4 addr show 2>/dev/null | awk '{print $2 ": " $4}' | head -n1)
+
+# Battery (if exists)
+if [ -r /sys/class/power_supply/BAT0/capacity ]; then
+  battery=$(cat /sys/class/power_supply/BAT0/capacity)%
+else
+  battery="n/a"
+fi
+
+# --- Colored ASCII (19 lines) ---
+logo=$(cat <<EOF
+${pink}        00000000000           00000000000          ${c0}
+${pink}      0000000      00000   000000     0000000      ${c0}
+${pink}    0000000             000              00000     ${c0}
+${lav}   0000000               0                  0000   ${c0}
+${lav}  000000                                     0000  ${c0}
+${lav}  00000                                       0000 ${c0}
+${blue} 00000                                      00000  ${c0}
+${blue} 00000                                     000000  ${c0}
+${blue}  000000                                 0000000   ${c0}
+${blue}   0000000                              0000000    ${c0}
+${mint}     000000                            000000      $c0
+${mint}       000000                        000000        $c0
+${mint}          00000                     0000           $c0
+${mint}             0000                 0000             $c0
+${lav}               0000             000                $c0
+${lav}                 000         000                   $c0
+${pink}                   000      00                     $c0
+${pink}                      00  00                       $c0
+${pink}                        00                         $c0
+EOF
+)
+
+# --- Info block (19 lines) ---
+info=$(cat <<EOF
+${pink}${user}${c0}@${pink}${host}${c0}
+${white}OS:${c0}        $os
+${white}Kernel:${c0}    $kernel
+${white}Arch:${c0}      $arch
+${white}Uptime:${c0}    $uptime
+${white}Memory:${c0}    $mem
+${white}Shell:${c0}     $shell
+${white}ShellVer:${c0}  $shver
+${white}Term:${c0}      $term
+${white}Pkgs:${c0}      $pkgs
+${white}CPU:${c0}       $cpu
+${white}GPU:${c0}      $gpu
+${white}WM/DE:${c0}     $wm
+${white}Machine:${c0}   $hostmodel
+${white}Disk:${c0}      $disk
+${white}Procs:${c0}     $procs
+${white}Battery:${c0}   $battery
+${white}Locale:${c0}    $locale
+${white}Net:${c0}       $net
+EOF
+)
+
+# --- Print side by side ---
+t1=$(mktemp); t2=$(mktemp); trap 'rm -f "$t1" "$t2"' EXIT
+printf "%s\n" "$logo" >"$t1"
+printf "%s\n" "$info" >"$t2"
+paste "$t1" "$t2" | sed 's/\t/   /g'
