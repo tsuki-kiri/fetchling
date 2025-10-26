@@ -1,5 +1,5 @@
 #!/bin/sh
-# fetchling - tall pastel system fetch
+# cute little silly little meow script
 
 ESC=$(printf '\033')
 c0="${ESC}[0m"
